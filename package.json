@@ -1,0 +1,14 @@
+{
+  "name": "offline-mri-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A simple, offline, single-file viewer for NIfTI (.nii/.nii.gz) MRI volumes, built on NiiVue.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "@niivue/niivue": "^0.69.0"
+  }
+}

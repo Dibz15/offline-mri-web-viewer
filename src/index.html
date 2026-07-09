@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>NiiVue Web Viewer</title>
+<style>
+  :root{
+    --void: #0a0c0f;
+    --panel: #14171c;
+    --panel-raised: #1b1f26;
+    --panel-raised-2: #20242c;
+    --border: #262b33;
+    --border-soft: #1e222a;
+    --text: #e8ebef;
+    --text-muted: #8890a0;
+    --text-dim: #5b6270;
+    --nav: #4fd8c4;       /* cool accent: navigation / crosshair / base layer */
+    --nav-dim: #2c7d71;
+    --stat: #ff9a4d;      /* warm accent: statistical overlay / threshold */
+    --stat-dim: #a35a24;
+    --danger: #e2596b;
+    --danger-dim: #5c2530;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", system-ui, "Inter", Roboto, Helvetica, Arial, sans-serif;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%; margin: 0; background: var(--void); color: var(--text);
+    font-family: var(--sans); font-size: 13px; overflow: hidden;
+  }
+  button, select, input { font-family: inherit; font-size: inherit; color: inherit; }
+  ::selection { background: var(--nav-dim); }
+
+  /* ---------- layout shell ---------- */
+  .app { display: flex; flex-direction: column; height: 100%; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    height: 46px; padding: 0 12px; flex: none;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .brand { display:flex; align-items:center; gap:8px; font-weight: 600; letter-spacing: .2px; margin-right: 4px; }
+  .brand .dot { width:8px; height:8px; border-radius:50%; background: var(--nav); box-shadow: 0 0 8px var(--nav); }
+  .brand small { color: var(--text-dim); font-weight: 400; font-family: var(--mono); font-size: 10px; }
+
+  .toolbar-group { display:flex; align-items:center; gap:4px; padding: 0 8px; border-left: 1px solid var(--border-soft); height: 28px; }
+  .toolbar-group:first-of-type { border-left: none; }
+  .spacer { flex: 1; }
+
+  .btn {
+    display:flex; align-items:center; gap:6px;
+    background: var(--panel-raised); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 10px; border-radius: var(--radius); cursor: pointer; white-space: nowrap;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .btn:hover { background: var(--panel-raised-2); border-color: #333a45; }
+  .btn:active { transform: translateY(1px); }
+  .btn.active { background: var(--nav-dim); border-color: var(--nav); color: #eafffb; }
+  .btn.small { padding: 3px 8px; font-size: 11.5px; }
+  .btn.icon { width: 28px; height: 28px; padding: 0; justify-content: center; }
+  .btn[disabled] { opacity: .4; cursor: not-allowed; }
+  .btn.primary { background: var(--nav-dim); border-color: var(--nav); }
+  .btn.primary:hover { background: #2f8f81; }
+
+  .seg { display:flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .seg .btn { border: none; border-radius: 0; border-right: 1px solid var(--border); }
+  .seg .btn:last-child { border-right: none; }
+
+  .status-msg {
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    max-width: 320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .status-msg.err { color: var(--danger); }
+
+  /* ---------- workspace ---------- */
+  .workspace { flex: 1; display: flex; min-height: 0; }
+
+  .sidebar {
+    width: 300px; flex: none; background: var(--panel);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .sidebar-head {
+    padding: 10px 12px; border-bottom: 1px solid var(--border-soft);
+  }
+  .sidebar-head h2 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; }
+  .dropzone {
+    border: 1.5px dashed var(--border); border-radius: var(--radius);
+    padding: 14px 10px; text-align: center; color: var(--text-muted);
+    cursor: pointer; transition: border-color .15s, background .15s; font-size: 12px;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--nav); background: rgba(79,216,196,0.06); color: var(--text); }
+  .dropzone b { color: var(--text); }
+
+  .volume-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .volume-list:empty::after {
+    content: "No volumes loaded yet."; display:block; color: var(--text-dim);
+    font-size: 12px; padding: 20px 6px; text-align:center;
+  }
+
+  .vcard {
+    background: var(--panel-raised); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 8px; overflow: hidden;
+  }
+  .vcard-head {
+    display:flex; align-items:center; gap:8px; padding: 8px 10px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .vcard-dot { width:9px; height:9px; border-radius:50%; flex:none; box-shadow: 0 0 6px currentColor; }
+  .vcard-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size: 12.5px; }
+  .vcard-tag {
+    font-family: var(--mono); font-size: 9.5px; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; flex: none;
+  }
+  .vcard-body { padding: 10px; display: flex; flex-direction: column; gap: 9px; }
+  .vcard-geometry {
+    font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+    padding: 5px 10px; border-bottom: 1px solid var(--border-soft);
+    background: rgba(255,255,255,0.015);
+  }
+  .row { display:flex; align-items:center; gap:8px; }
+  .row label.flabel { width: 60px; flex: none; color: var(--text-muted); font-size: 11.5px; }
+  .row select, .row input[type=text] {
+    flex:1; background: var(--void); border: 1px solid var(--border); color: var(--text);
+    border-radius: 4px; padding: 4px 6px; min-width: 0;
+  }
+  .range-pair { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
+  .range-pair input[type=range] { flex:1; min-width:0; accent-color: var(--nav); }
+  .range-pair .rv {
+    font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); width: 46px; text-align:right; flex:none;
+  }
+  input[type=range] { accent-color: var(--nav); }
+  .vcard.overlay input[type=range] { accent-color: var(--stat); }
+
+  .chip-row { display:flex; align-items:center; gap:14px; flex-wrap: wrap; }
+  .chip { display:flex; align-items:center; gap:5px; font-size: 11.5px; color: var(--text-muted); cursor:pointer; }
+  .chip input { accent-color: var(--nav); }
+
+  details.adv { border-top: 1px solid var(--border-soft); padding-top: 8px; margin-top: 2px; }
+  details.adv summary { cursor:pointer; font-size: 11px; color: var(--text-dim); list-style: none; }
+  details.adv summary::-webkit-details-marker { display:none; }
+  details.adv summary::before { content: "▸ "; }
+  details.adv[open] summary::before { content: "▾ "; }
+  details.adv .row { margin-top: 8px; }
+
+  .vcard-actions { display:flex; justify-content:flex-end; gap:6px; padding: 6px 10px; border-top: 1px solid var(--border-soft); }
+
+  /* ---------- canvas area ---------- */
+  .canvas-wrap {
+    flex: 1; position: relative; background: var(--void);
+    display:flex; flex-direction: column; min-width: 0;
+  }
+  #gl { flex: 1; width: 100%; height: 100%; display:block; outline: none; }
+
+  .canvas-wrap.drag::after {
+    content: "Drop .nii / .nii.gz files to load"; position:absolute; inset: 10px;
+    border: 2px dashed var(--nav); border-radius: 10px; z-index: 5;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(10,12,15,0.75); color: var(--nav); font-size: 15px; pointer-events: none;
+  }
+
+  .loading-overlay {
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background: rgba(10,12,15,0.55); z-index: 6; flex-direction: column; gap: 10px;
+  }
+  .loading-overlay.show { display:flex; }
+  .spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--nav);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-overlay span { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
+
+  .frame4d-bar {
+    display:none; align-items:center; gap:10px; padding: 6px 14px;
+    background: var(--panel); border-top: 1px solid var(--border); flex: none;
+  }
+  .frame4d-bar.show { display:flex; }
+  .frame4d-bar label { font-size: 11px; color: var(--text-dim); flex: none; }
+  .frame4d-bar select { background: var(--void); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:3px 6px; }
+  .frame4d-bar input[type=range] { flex:1; accent-color: var(--stat); }
+  .frame4d-bar .fv { font-family: var(--mono); font-size: 11px; color: var(--text-muted); width: 90px; text-align:right; flex:none; }
+  .frame4d-bar .btn { flex: none; }
+
+  .clip3d-bar {
+    display:none; flex-wrap: wrap; align-items:center; gap: 8px 16px; padding: 8px 14px;
+    background: var(--panel); border-top: 1px solid var(--border); flex: none;
+  }
+  .clip3d-bar.show { display:flex; }
+  .clip3d-bar .grp { display:flex; align-items:center; gap:6px; }
+  .clip3d-bar label { font-size: 11px; color: var(--text-dim); flex:none; }
+  .clip3d-bar select { background: var(--void); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:3px 6px; }
+  .clip3d-bar input[type=range] { width: 120px; accent-color: var(--stat); }
+  .clip3d-bar input[type=number] { width: 56px; background: var(--void); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:3px 5px; }
+  .clip3d-bar .fv { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); width: 52px; }
+  .clip3d-bar .hint { font-size: 10.5px; color: var(--text-dim); flex-basis: 100%; }
+  .clip3d-bar .chip { font-size: 11px; }
+
+  /* ---------- HUD telemetry strip (signature element) ---------- */
+  .hud {
+    flex: none; display:flex; align-items:center; gap: 22px;
+    padding: 7px 14px; background: #0d0f13; border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+    overflow-x: auto; white-space: nowrap;
+  }
+  .hud .hud-block { display:flex; align-items:center; gap:6px; flex: none; }
+  .hud .hud-label { color: var(--text-dim); }
+  .hud .hud-val { color: var(--text); }
+  .hud .hud-sep { width:1px; height: 14px; background: var(--border); flex: none; }
+  .hud .layer-dot { width:7px; height:7px; border-radius:50%; flex:none; box-shadow: 0 0 5px currentColor; }
+
+  /* scrollbars */
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2f38; border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #363c47; }
+
+  input[type="file"] { display:none; }
+
+  @media (max-width: 820px) {
+    .sidebar { position:absolute; z-index: 20; height: calc(100% - 46px); box-shadow: 4px 0 20px rgba(0,0,0,.5); }
+    .sidebar.collapsed { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== TOP TOOLBAR ===================== -->
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span>NiiVue Viewer <small id="verTag"></small></div>
+
+    <div class="toolbar-group">
+      <button class="btn primary small" id="btnOpen">Open files…</button>
+      <input type="file" id="fileInput" multiple accept=".nii,.gz,.nii.gz" />
+    </div>
+
+    <div class="toolbar-group">
+      <span style="color:var(--text-dim); font-size:11px; margin-right:2px;">Layout</span>
+      <div class="seg">
+        <button class="btn small active" data-layout="grid">2×2</button>
+        <button class="btn small" data-layout="row">Row</button>
+        <button class="btn small" data-layout="column">Col</button>
+        <button class="btn small" data-layout="single">Single</button>
+      </div>
+      <select id="singlePaneSelect" class="btn small" style="display:none; margin-left:4px;">
+        <option value="axial">Axial</option>
+        <option value="coronal">Coronal</option>
+        <option value="sagittal">Sagittal</option>
+        <option value="render">3D Render</option>
+      </select>
+    </div>
+
+    <div class="toolbar-group">
+      <label class="chip"><input type="checkbox" id="chk3d" /> 3D render</label>
+      <label class="chip"><input type="checkbox" id="chkColorbar" checked /> Colorbars</label>
+      <button class="btn small" id="btnClip3d" title="Cut away part of the 3D volume to see internal structures">✂️ Clip 3D</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button class="btn small" id="btnMeasure" title="Toggle distance measurement (drag on a slice)">📏 Measure</button>
+      <button class="btn small" id="btnClearMeasure" title="Clear measurement lines">Clear</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button class="btn icon" id="btnReset" title="Reset view / fit to window">⤾</button>
+      <button class="btn icon" id="btnScreenshot" title="Save screenshot (PNG)">📷</button>
+    </div>
+
+    <div class="spacer"></div>
+    <div class="status-msg" id="statusMsg"></div>
+  </div>
+
+  <!-- ===================== WORKSPACE ===================== -->
+  <div class="workspace">
+
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <h2>Volumes</h2>
+        <div class="dropzone" id="dropzoneSidebar">
+          <b>Click to browse</b> or drag <code>.nii</code> / <code>.nii.gz</code> files here.<br/>
+          First file loaded becomes the base layer.
+        </div>
+      </div>
+      <div class="volume-list" id="volumeList"></div>
+    </aside>
+
+    <section class="canvas-wrap" id="canvasWrap">
+      <canvas id="gl" tabindex="0"></canvas>
+
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <span id="loadingText"></span>
+      </div>
+
+      <div class="frame4d-bar" id="frame4dBar">
+        <label>4D volume</label>
+        <select id="frame4dSelect"></select>
+        <input type="range" id="frame4dSlider" min="0" max="0" value="0" step="1" />
+        <span class="fv" id="frame4dLabel">frame 0 / 0</span>
+        <button class="btn small icon" id="frame4dPlay" title="Play/Pause">▶</button>
+      </div>
+
+      <div class="clip3d-bar" id="clip3dBar">
+        <div class="grp">
+          <label>Axis</label>
+          <select id="clipAxis">
+            <option value="sagittal">Sagittal (L/R)</option>
+            <option value="coronal">Coronal (A/P)</option>
+            <option value="axial">Axial (S/I)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="grp">
+          <label>Cut amount</label>
+          <input type="range" id="clipDepth" min="0" max="100" step="1" value="50" />
+          <span class="fv" id="clipDepthVal">50%</span>
+        </div>
+        <div class="grp">
+          <label>Precision</label>
+          <select id="clipPrecision">
+            <option value="1">1%</option>
+            <option value="0.1">0.1%</option>
+            <option value="0.01">0.01%</option>
+          </select>
+        </div>
+        <div class="grp">
+          <label>Azimuth</label>
+          <input type="number" id="clipAzimuth" min="-180" max="360" step="1" value="0" />
+        </div>
+        <div class="grp">
+          <label>Elevation</label>
+          <input type="number" id="clipElevation" min="-90" max="90" step="1" value="0" />
+        </div>
+        <button class="btn small" id="clipFlip" title="Flip which side is cut away">⇄ Flip</button>
+        <label class="chip"><input type="checkbox" id="clipCutaway" /> Cutaway shading</label>
+        <label class="chip"><input type="checkbox" id="clipAllVolumes" /> Clip overlays too</label>
+        <span class="hint">Cutting plane for the 3D render view — switch to a Render pane to see it. Nudge azimuth/elevation if the axis isn't quite right for your volume's orientation.</span>
+      </div>
+
+      <div class="hud" id="hud">
+        <div class="hud-block"><span class="hud-label">mm</span><span class="hud-val" id="hudMm">—, —, —</span></div>
+        <div class="hud-block"><span class="hud-label">vox</span><span class="hud-val" id="hudVox">—, —, —</span></div>
+        <div class="hud-block" id="hudMeasure" style="display:none; color:var(--stat);">
+          <span class="hud-label">measured</span><span class="hud-val">—</span>
+        </div>
+        <div class="hud-sep"></div>
+        <div id="hudValues" style="display:flex; gap:18px; align-items:center;"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

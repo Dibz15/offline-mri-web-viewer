@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build offline viewer
+        run: npm run build
+
+      - name: Rename artifact for release
+        run: cp dist/index.html offline-mri-viewer.html
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: offline-mri-viewer.html
+          generate_release_notes: true
