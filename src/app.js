@@ -90,7 +90,7 @@ async function init() {
   nv.onImageLoaded = () => renderSidebar();
   nv.onVolumeRemoved = () => renderSidebar();
 
-  $("#verTag").textContent = "v0.69.0 · offline";
+  $("#verTag").textContent = "v1.0.0 · offline";
 
   wireToolbar();
   wireDropzones();
@@ -636,7 +636,7 @@ function wireRenderScrollAlwaysZooms() {
       e.stopPropagation();
       const step = e.deltaY < 0 ? 1.1 : 0.9; // matches NiiVue's own zoom-per-notch factor
       const current = nv.scene.volScaleMultiplier ?? 1;
-      nv.scene.volScaleMultiplier = Math.min(2, Math.max(0.5, current * step));
+      nv.scene.volScaleMultiplier = Math.min(2, Math.max(0.1, current * step));
       nv.drawScene();
     },
     { capture: true, passive: false }
