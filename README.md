@@ -6,8 +6,6 @@ no account, no data leaving your machine — open one HTML file and drop in
 a scan.
 
 **Live site:** https://dibz15.github.io/offline-mri-web-viewer/
-*(update this link if your repository name or GitHub username differs — see
-[Deployment](#deployment) below)*
 
 **Download:** grab the latest self-contained `offline-mri-viewer.html` from
 the [Releases page](../../releases/latest) — save it anywhere and double-click
@@ -77,17 +75,6 @@ edit; `dist/` is a build output and isn't committed.
 To iterate locally, run `npm run build` and open `dist/index.html`
 directly in a browser, or serve `src/` with any static file server during
 development (NiiVue itself is only vendored at build time).
-
-### Deployment
-
-- **GitHub Pages:** [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)
-  builds and deploys `dist/` to GitHub Pages on every push to `main`.
-  Enable Pages under *Settings → Pages → Source: GitHub Actions* for this
-  to take effect.
-- **Releases:** [`.github/workflows/release.yml`](./.github/workflows/release.yml)
-  builds the app and attaches `offline-mri-viewer.html` to a GitHub
-  Release whenever a tag matching `v*.*.*` is pushed (or via manual
-  workflow dispatch).
 
 ## Credits
 
