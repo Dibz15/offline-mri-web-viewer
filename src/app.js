@@ -90,7 +90,7 @@ async function init() {
   nv.onImageLoaded = () => renderSidebar();
   nv.onVolumeRemoved = () => renderSidebar();
 
-  $("#verTag").textContent = "v1.0.0 · offline";
+  $("#verTag").textContent = "v1.0.1 · offline";
 
   wireToolbar();
   wireDropzones();
