@@ -6,9 +6,11 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "serve": "serve dist -l 5500"
   },
   "devDependencies": {
-    "@niivue/niivue": "^0.69.0"
+    "@niivue/niivue": "^0.69.0",
+    "serve": "^14"
   }
 }
