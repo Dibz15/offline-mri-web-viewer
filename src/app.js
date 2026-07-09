@@ -308,21 +308,62 @@ function buildVolumeCard(volume, index) {
 }
 
 function bindCardEvents(card, volume) {
-  card.querySelector('[data-action="colormap"]').addEventListener("change", (e) => {
-    nv.setColormap(volume.id, e.target.value);
-    persistSettings(volume);
-  });
-
+  
   const opacityInput = card.querySelector('[data-action="opacity"]');
+  const opacityReadout = card.querySelector('[data-readout="opacity"]');
+  const visibleInput = card.querySelector('[data-action="visible"]');
+
+  // No opacity slider is rendered for the base layer, so its absence doubles
+  // as our "is this the base card" check — matches how the markup already
+  // decides whether to show the slider at all.
+  const fallbackOpacity = opacityInput ? 0.7 : 1;
+
   if (opacityInput) {
     opacityInput.addEventListener("input", (e) => {
+      const value = parseFloat(e.target.value);
       const idx = nv.volumes.indexOf(volume);
-      nv.setOpacity(idx, parseFloat(e.target.value));
-      card.querySelector('[data-readout="opacity"]').textContent = fmtNum(e.target.value);
+      nv.setOpacity(idx, value);
+      opacityReadout.textContent = fmtNum(value);
+
+      // Keep "Visible" honest: dragging opacity above 0 un-hides the volume
+      // even if it was checked off, and dragging to 0 is the same thing as
+      // hiding it — sync the checkbox to match either way.
+      if (value > 0) {
+        volume.__opacityBeforeHide = value; // always remember the last real (non-zero) opacity
+        if (!visibleInput.checked) visibleInput.checked = true;
+      } else if (visibleInput.checked) {
+        visibleInput.checked = false;
+      }
       persistSettings(volume);
     });
   }
 
+  visibleInput.addEventListener("change", (e) => {
+    const idx = nv.volumes.indexOf(volume);
+    let newOpacity;
+
+    if (!e.target.checked) {
+      // Stash current opacity so re-checking restores it exactly. NiiVue has
+      // no separate visibility flag for volumes — opacity 0 is the only real
+      // way to hide one.
+      if (volume.opacity > 0) volume.__opacityBeforeHide = volume.opacity;
+      newOpacity = 0;
+    } else {
+      newOpacity = volume.__opacityBeforeHide ?? fallbackOpacity;
+    }
+
+    nv.setOpacity(idx, newOpacity);
+    if (opacityInput) {
+      opacityInput.value = newOpacity;
+      opacityReadout.textContent = fmtNum(newOpacity);
+    }
+    persistSettings(volume);
+  });
+  
+  card.querySelector('[data-action="colormap"]').addEventListener("change", (e) => {
+    nv.setColormap(volume.id, e.target.value);
+    persistSettings(volume);
+  });
   card.querySelector('[data-action="cal_min"]').addEventListener("input", (e) => {
     volume.cal_min = parseFloat(e.target.value);
     card.querySelector('[data-readout="cal_min"]').textContent = fmtNum(volume.cal_min);
@@ -336,11 +377,6 @@ function bindCardEvents(card, volume) {
     persistSettings(volume);
   });
 
-  card.querySelector('[data-action="visible"]').addEventListener("change", (e) => {
-    volume.visible = e.target.checked;
-    nv.updateGLVolume();
-    persistSettings(volume);
-  });
   card.querySelector('[data-action="colorbar"]').addEventListener("change", (e) => {
     volume.colorbarVisible = e.target.checked;
     nv.updateGLVolume();
@@ -599,10 +635,10 @@ function wireClip3dBar() {
     updateClipDepthReadout(depth.value);
     applyClipPlane();
   });
-  $("#clipCutaway").addEventListener("change", (e) => {
-    nv.opts.isClipPlanesCutaway = e.target.checked;
-    nv.drawScene();
-  });
+  // $("#clipCutaway").addEventListener("change", (e) => {
+  //   nv.opts.isClipPlanesCutaway = e.target.checked;
+  //   nv.drawScene();
+  // });
   $("#clipAllVolumes").addEventListener("change", (e) => {
     nv.opts.isClipAllVolumes = e.target.checked;
     nv.drawScene();
@@ -618,25 +654,28 @@ function wireClip3dBar() {
 // canvas — and, when clipping is active and the pointer is over the render
 // tile, replicate NiiVue's own zoom step ourselves and stop the event from
 // propagating any further.
+const RENDER_ZOOM_MIN = 0.5;
+const RENDER_ZOOM_MAX = 6; // was 2 (NiiVue's native cap) — see note below on why not higher
+
 function wireRenderScrollAlwaysZooms() {
   const canvas = $("#gl");
   document.addEventListener(
     "wheel",
     (e) => {
-      if (e.target !== canvas || !clip3dOn) return;
+      if (e.target !== canvas) return; // dropped the `|| !clip3dOn` guard — we now always own this
       const rect = canvas.getBoundingClientRect();
       const dpr = nv.uiData?.dpr || 1;
       const x = (e.clientX - rect.left) * dpr;
       const y = (e.clientY - rect.top) * dpr;
       let inRenderTile = false;
       try { inRenderTile = nv.inRenderTile(x, y) >= 0; } catch { inRenderTile = false; }
-      if (!inRenderTile) return; // outside the 3D pane — normal slice-scroll behavior is fine as-is
+      if (!inRenderTile) return; // outside the 3D pane — leave normal slice-scroll alone
 
       e.preventDefault();
       e.stopPropagation();
-      const step = e.deltaY < 0 ? 1.1 : 0.9; // matches NiiVue's own zoom-per-notch factor
+      const step = e.deltaY < 0 ? 1.1 : 0.9;
       const current = nv.scene.volScaleMultiplier ?? 1;
-      nv.scene.volScaleMultiplier = Math.min(2, Math.max(0.1, current * step));
+      nv.scene.volScaleMultiplier = Math.min(RENDER_ZOOM_MAX, Math.max(RENDER_ZOOM_MIN, current * step));
       nv.drawScene();
     },
     { capture: true, passive: false }
@@ -734,13 +773,10 @@ function wireToolbar() {
 
   // Reset view / fit to window
   $("#btnReset").addEventListener("click", () => {
-    if (typeof nv.resetScene === "function") {
-      try { nv.resetScene(); return; } catch {}
-    }
-    // Fallback: NiiVue's core keyboard handler binds "r" to reset pan/zoom.
-    $("#gl").focus();
-    $("#gl").dispatchEvent(new KeyboardEvent("keydown", { key: "r", code: "KeyR", bubbles: true }));
-    nv.updateGLVolume();
+    nv.setPan2Dxyzmm([0, 0, 0, 1]);        // reset 2D pan/zoom
+    nv.scene.volScaleMultiplier = 1;        // reset 3D zoom — plain property, doesn't redraw on its own
+    nv.setRenderAzimuthElevation(110, 10);  // NiiVue's own default 3D camera angle
+    nv.drawScene();                         // catches the volScaleMultiplier assignment above
   });
 
   // Screenshot.
