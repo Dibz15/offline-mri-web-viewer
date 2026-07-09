@@ -5,7 +5,7 @@ A simple, offline, no-download-required tool for viewing 3D MRI scans
 no account, no data leaving your machine — open one HTML file and drop in
 a scan.
 
-**Live site:** https://dibz15.github.io/offline-mri-viewer/
+**Live site:** https://dibz15.github.io/offline-mri-web-viewer/
 *(update this link if your repository name or GitHub username differs — see
 [Deployment](#deployment) below)*
 
@@ -13,35 +13,11 @@ a scan.
 the [Releases page](../../releases/latest) — save it anywhere and double-click
 to open it, no internet connection required after that.
 
----
+## Screenshots
 
-## Screenshots / demo
+![Interface with a loaded example volume](media/interface.png)
 
-*(Add a few screenshots or a short screen recording here once you have them.
-Suggestions for what's worth capturing:)*
-
-1. **Multiplanar view** — a loaded T1 scan in the default 2×2 grid layout
-   (axial/coronal/sagittal + optional 3D render), crosshair visible, sidebar
-   showing the volume's colormap/window controls.
-2. **Overlay + colorbar** — an anatomical base image with a statistical map
-   or segmentation overlay on top (hot/jet colormap, colorbar visible,
-   opacity slider mid-way), to show off multi-volume support.
-3. **3D clip plane** — the render view with the clip-plane tool cutting away
-   part of the volume to reveal internal structure — this is the most
-   visually distinctive feature, worth a GIF or short clip showing the cut
-   amount slider being dragged live.
-4. *(Optional)* A short (10–20s) screen recording of the whole flow: drag a
-   `.nii.gz` file onto the page → adjust window/level → switch layouts →
-   take a screenshot with the built-in export button.
-
-```md
-<!-- Example once you have images, e.g. in a docs/ or screenshots/ folder:
-![Multiplanar view](docs/screenshot-multiplanar.png)
-![3D clip plane](docs/screenshot-clip3d.png)
--->
-```
-
----
+![Interface with a loaded example volume and segmentation overlay](media/interface_w_mask.png)
 
 ## Features
 
