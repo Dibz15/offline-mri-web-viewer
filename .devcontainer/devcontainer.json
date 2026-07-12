@@ -17,9 +17,17 @@
       "extensions": [
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "ritwickdey.LiveServer"
+        "ritwickdey.LiveServer",
+        "saoudrizwan.claude-dev@4.0.8"
       ]
     }
   },
-  "remoteUser": "node"
+  "remoteUser": "node",
+  "mounts": [
+    {
+      "source": "cline-globalstorage",
+      "target": "/home/vscode/.vscode-server/data/User/globalStorage/saoudrizwan.claude-dev",
+      "type": "volume"
+    }
+  ]
 }
