@@ -53,13 +53,14 @@ let frame4dTimer = null;
 const fourDVolumeIds = new Set(); // ids of currently-loaded 4D volumes
 
 let clip3dOn = false;
+let clipSliceMode = false;
 // Best-effort axis presets (azimuth/elevation, degrees) — NiiVue's clip plane
 // uses the same spherical azimuth/elevation convention as its 3D render
 // camera. If a volume's orientation makes one of these look off, nudge the
 // azimuth/elevation fields directly; the render updates live.
 const CLIP_AXIS_PRESETS = {
-  sagittal: { azimuth: 0, elevation: 0 },
-  coronal: { azimuth: 90, elevation: 0 },
+  sagittal: { azimuth: 90, elevation: 0 },
+  coronal: { azimuth: 0, elevation: 0 },
   axial: { azimuth: 0, elevation: 90 },
 };
 const CLIP_DISABLED = [2, 0, 0]; // depth > ~1.73 disables clipping entirely
@@ -75,6 +76,7 @@ async function init() {
     show3Dcrosshair: true,
     isColorbar: true,
     isResizeCanvas: true,
+    isOrientCube: true
   });
 
   await nv.attachToCanvas($("#gl"));
@@ -561,6 +563,7 @@ function wireFrame4dBar() {
 // That's not how a "cut amount" dial should read (0 ought to mean no cut),
 // so we expose 0-100% here and convert to NiiVue's depth internally.
 const CLIP_DEPTH_MAX = 1.73; // ~sqrt(3), the volume's half-diagonal in NiiVue's normalized space
+const CLIP_SLAB_THICKNESS_MAX = 0.5; // NOT 2*CLIP_DEPTH_MAX — see note above
 function cutPercentToDepth(percent) {
   return CLIP_DEPTH_MAX - (percent / 100) * (2 * CLIP_DEPTH_MAX);
 }
@@ -571,6 +574,15 @@ function updateClipDepthReadout(percent) {
   $("#clipDepthVal").textContent = `${parseFloat(percent).toFixed(decimals)}%`;
 }
 
+function computeFollowerPlane(primary, thicknessRaw) {
+  const [ depth, azimuth, elevation ] = primary;
+  return {
+    depth: thicknessRaw - depth,
+    azimuth: (azimuth + 180 + 360) % 360, // wrap safely regardless of input sign
+    elevation: -elevation,
+  };
+}
+
 function applyClipPlane() {
   if (!clip3dOn) {
     nv.setClipPlane(CLIP_DISABLED);
@@ -579,7 +591,25 @@ function applyClipPlane() {
   const depth = cutPercentToDepth(parseFloat($("#clipDepth").value));
   const azimuth = parseFloat($("#clipAzimuth").value);
   const elevation = parseFloat($("#clipElevation").value);
-  nv.setClipPlane([depth, azimuth, elevation]);
+
+  const primaryPlane = [depth, azimuth, elevation];
+
+  if (clipSliceMode) {
+
+    // Slice mode: two parallel planes creating a 3D slice/wedge effect
+    const thicknessPercent = parseFloat($("#clipThickness").value);
+    const follower = computeFollowerPlane(primaryPlane, (thicknessPercent / 100) * (2 * CLIP_SLAB_THICKNESS_MAX));
+    console.log(primaryPlane);
+    console.log([follower.depth, follower.azimuth, follower.elevation]);
+    // Two parallel planes with same azimuth/elevation, different depths
+    nv.setClipPlanes([
+      primaryPlane,
+      [follower.depth, follower.azimuth, follower.elevation]
+    ]);
+  } else {
+    // Single plane mode (standard cutaway)
+    nv.setClipPlanes([primaryPlane]);
+  }
 }
 
 function setClipAxisPreset(axisName) {
@@ -621,11 +651,13 @@ function wireClip3dBar() {
     const az = $("#clipAzimuth");
     const el = $("#clipElevation");
     const flipElevation = axis === "axial" || (axis === "custom" && Math.abs(parseFloat(el.value)) > 45);
-    if (flipElevation) {
-      el.value = -parseFloat(el.value);
-    } else {
-      az.value = (parseFloat(az.value) + 180) % 360;
-    }
+    // if (flipElevation) {
+    //   el.value = -parseFloat(el.value);
+    // } else {
+    //   az.value = (parseFloat(az.value) + 180) % 360;
+    // }
+    el.value = -parseFloat(el.value);
+    az.value = (parseFloat(az.value) + 180) % 360;
     // Flipping the plane's facing direction also swaps which side "cut
     // amount" measures from, so complement it — otherwise the same slider
     // value jumps to a mirrored position instead of staying on the slice
@@ -642,6 +674,23 @@ function wireClip3dBar() {
   $("#clipAllVolumes").addEventListener("change", (e) => {
     nv.opts.isClipAllVolumes = e.target.checked;
     nv.drawScene();
+  });
+
+  // Slice mode toggle - shows/hides thickness control
+  $("#clipSliceMode").addEventListener("change", (e) => {
+    clipSliceMode = e.target.checked;
+    const thicknessGroup = $("#clipThicknessGroup");
+    thicknessGroup.style.display = clipSliceMode ? "block" : "none";
+    applyClipPlane();
+  });
+  // Initialize from checkbox state to ensure UI sync on load
+  clipSliceMode = $("#clipSliceMode").checked;
+
+  // Thickness slider for slice mode
+  $("#clipThickness").addEventListener("input", (e) => {
+    const val = e.target.value;
+    $("#clipThicknessVal").textContent = `${val}%`;
+    applyClipPlane();
   });
 }
 
